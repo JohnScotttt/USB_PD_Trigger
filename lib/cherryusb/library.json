@@ -1,0 +1,23 @@
+{
+  "name": "CherryUSB",
+  "version": "1.5.2",
+  "build": {
+    "srcFilter": [
+      "+<CherryUSB/core/usbd*>",
+      "+<CherryUSB/common/>",
+      "+<CherryUSB/class/cdc/usbd_cdc_acm.c>",
+      "+<CherryUSB/class/hid/usbd_hid.c>",
+      "+<port/>"
+    ],
+    "includeDir": ".",
+    "flags": [
+      "-I config",
+      "-I CherryUSB/core",
+      "-I CherryUSB/common",
+      "-I CherryUSB/class/cdc",
+      "-I CherryUSB/class/hid",
+      "-I port"
+    ],
+    "libArchive": false
+  }
+}
