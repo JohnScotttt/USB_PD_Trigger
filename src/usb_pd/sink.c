@@ -3,7 +3,7 @@
 #include "event.h"
 #include "ccdet.h"
 #include "phy.h"
-#include "usb/hid.h"
+#include "interface/hid.h"
 
 #include "delay.h"
 #include "config.h"

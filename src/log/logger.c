@@ -1,6 +1,6 @@
 #include "logger.h"
 #include "vbus/sensor.h"
-#include "usb/hid.h"
+#include "interface/hid.h"
 #include "delay.h"
 #include "control/status.h"
 

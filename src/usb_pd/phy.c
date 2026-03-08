@@ -1,6 +1,6 @@
 #include "phy.h"
 #include "delay.h"
-#include "usb/hid.h"
+#include "interface/hid.h"
 
 static uint8_t usb_pd_rx_buffer[USB_PD_DATA_MAX_LEN] __attribute__((aligned(4)));
 static uint8_t usb_pd_tx_buffer[USB_PD_DATA_MAX_LEN] __attribute__((aligned(4)));

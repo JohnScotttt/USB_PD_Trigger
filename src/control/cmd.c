@@ -1,5 +1,5 @@
 #include "cmd.h"
-#include "usb/hid.h"
+#include "interface/hid.h"
 #include "status.h"
 #include "usb_pd/event.h"
 #include "usb_pd/phy.h"
@@ -110,7 +110,7 @@ static void cmd_forward_sys(uint8_t sys_cmd_code)
         }
         case SYS_CMD_SET_HID_PRIORITY:
         {
-            set_usb_pd_msg_priority(HID_PRIORITY);
+            set_usb_pd_msg_priority(IF_PRIORITY);
             break;
         }
         case SYS_CMD_SET_REPLY_PRIORITY:

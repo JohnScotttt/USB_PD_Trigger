@@ -4,7 +4,7 @@
 
 typedef enum usb_pd_msg_priority_type_t
 {
-    HID_PRIORITY,
+    IF_PRIORITY,
     REPLY_PRIORITY,
 } usb_pd_msg_priority_type_t;
 

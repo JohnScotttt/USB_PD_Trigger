@@ -1,5 +1,5 @@
 #include <ch32x035.h>
-#include "usb/hid.h"
+#include "interface/hid.h"
 #include "usb_pd/phy.h"
 #include "usb_pd/ccdet.h"
 #include "usb_pd/sink.h"

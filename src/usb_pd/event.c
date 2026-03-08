@@ -1,7 +1,8 @@
 #include "event.h"
 #include "phy.h"
 #include "delay.h"
-#include "usb/hid.h"
+#include "interface/hid.h"
+#include "interface/uart.h"
 #include "control/status.h"
 #include "control/keypad.h"
 
@@ -1114,7 +1115,7 @@ void usb_pd_event_process_next(void)
             {
                 auto_reply();
             }
-            else if (get_usb_pd_msg_priority() == HID_PRIORITY)
+            else if (get_usb_pd_msg_priority() == IF_PRIORITY)
             {
                 if (hid_rx_buf_has_pd())
                 {
