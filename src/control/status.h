@@ -33,3 +33,6 @@ void set_usb_hid_report_type(usb_hid_report_type_t type);
 usb_hid_report_type_t get_usb_hid_report_type(void);
 
 void vbus_out_enable(bool enable);
+
+void set_fram_capacity(uint32_t capacity);
+uint32_t get_fram_capacity(void);

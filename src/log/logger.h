@@ -4,6 +4,7 @@
 
 // 主要用于处理写入间隔小于 USB FS HID 端点轮询间隔（1 ms）的缓冲，防止瞬时大量写入丢包
 #define LOG_BUFFER_SIZE 16
+#define LOG_RING_INC(x) (((x) + 1) % LOG_BUFFER_SIZE)
 
 typedef struct log_entry_t //__attribute__((packed))
 {
@@ -51,6 +52,7 @@ typedef union usb_hid_report_t
 void log_save_usb_pd_rx(uint8_t status, const uint8_t *data, uint16_t len);
 void log_save_usb_pd_tx(uint8_t sop, const uint8_t *data, uint16_t len);
 void log_save_sys(system_type_t sys_type);
+void log_save_msg(const uint8_t *data, uint16_t len);
 void log_save_usb_pd_connect_change(usb_pd_cc_channel_type_t old_channel, usb_pd_cc_channel_type_t new_channel);
 
 void log_reset(void);

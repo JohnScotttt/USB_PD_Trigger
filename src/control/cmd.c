@@ -121,19 +121,22 @@ static void cmd_forward_sys(uint8_t sys_cmd_code)
         case SYS_CMD_SET_SINK_MODE_SPR:
         {
             set_usb_pd_sink_mode(SPR_MODE);
-            // TODO: 离线保存
+            delay_ms(10);
+            usb_pd_phy_send_hard_reset();
             break;
         }
         case SYS_CMD_SET_SINK_MODE_EPR:
         {
             set_usb_pd_sink_mode(EPR_MODE);
-            // TODO: 离线保存
+            delay_ms(10);
+            usb_pd_phy_send_hard_reset();
             break;
         }
         case SYS_CMD_SET_SINK_MODE_PROP:
         {
             set_usb_pd_sink_mode(PROP_MODE);
-            // TODO: 离线保存
+            delay_ms(10);
+            usb_pd_phy_send_hard_reset();
             break;
         }
         case SYS_CMD_SET_HID_REPORT_STD:

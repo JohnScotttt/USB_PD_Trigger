@@ -45,6 +45,13 @@
 #define UART_TX_GPIO_PIN     GPIO_Pin_2
 #define UART_RX_GPIO_PIN     GPIO_Pin_3
 
+#define SPI_GPIO_PORT        GPIOA
+#define SPI_GPIO_CLK         RCC_APB2Periph_GPIOA
+#define CS_GPIO_PIN          GPIO_Pin_4
+#define SCK_GPIO_PIN         GPIO_Pin_5
+#define MISO_GPIO_PIN        GPIO_Pin_6
+#define MOSI_GPIO_PIN        GPIO_Pin_7
+
 #define SET_CC1_ACTIVE() (USBPD->CONFIG &= ~CC_SEL)
 #define SET_CC2_ACTIVE() (USBPD->CONFIG |= CC_SEL)
 #define IS_CC1_ACTIVE()  ((USBPD->CONFIG & CC_SEL) == 0)

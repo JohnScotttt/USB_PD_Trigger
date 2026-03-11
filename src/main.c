@@ -8,6 +8,8 @@
 #include "control/keypad.h"
 #include "control/status.h"
 #include "control/cmd.h"
+#include "memory/fram.h"
+#include "log/logger.h"
 
 int main(void)
 {
@@ -15,6 +17,9 @@ int main(void)
     SystemCoreClockUpdate();
 
     delay_init();
+
+    uint32_t fram_capacity = fram_init();
+    set_fram_capacity(fram_capacity);
 
     keypad_init();
 
