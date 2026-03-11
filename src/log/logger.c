@@ -11,8 +11,6 @@ static log_buf_t                  log_buffer  = {0};
 // Ring Buffer
 // ============================================================================
 
-#define LOG_RING_INC(x) (((x) + 1) % LOG_BUFFER_SIZE)
-
 static inline bool log_buf_is_full(void)
 {
     return (LOG_RING_INC(log_buffer.head) == log_buffer.tail);
@@ -162,6 +160,24 @@ void log_save_sys(system_type_t sys_evt_type)
     log.timestamp_us = millis();
     log.data_len = 1;
     log.data[0] = (uint8_t)sys_evt_type;
+
+    log_buf_push(&log);
+}
+
+void log_save_msg(const uint8_t *data, uint16_t len)
+{
+    // 限制数据长度
+    if (len > USB_PD_DATA_MAX_LEN)
+    {
+        len = USB_PD_DATA_MAX_LEN;
+    }
+
+    log_entry_t log = {0};
+    log.type = MESSAGE;
+    log.counter = ++log_counter;
+    log.timestamp_us = millis();
+    log.data_len = len;
+    memcpy(log.data, data, len);
 
     log_buf_push(&log);
 }

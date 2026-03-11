@@ -15,10 +15,10 @@ static uint8_t last_ext_data[70] = {0};                 // Only data objects wit
 static usb_pd_event_status_type_t event_status = PD_WAITING;
 static usb_pd_epr_status_type_t epr_status = EPR_UNSUPPORTED;
 static usb_pd_keep_alive_type_t keep_alive_status = KEEP_ALIVE_NONE;
+static key_mode_type_t key_mode = KEY_MODE_SELECT_PDO;
+static modify_field_type_t modify_field = MODIFY_NONE;
 static uint32_t last_timestamp_ms = 0;
 static uint8_t msg_id = 7;
-
-#define CMD_QUEUE_SIZE 4
 static usb_pd_cmd_t cmd_queue[CMD_QUEUE_SIZE];
 static uint8_t cmd_queue_head = 0;
 static uint8_t cmd_queue_tail = 0;
@@ -39,37 +39,6 @@ static bool cmd_queue_pop(usb_pd_cmd_t *cmd)
     cmd_queue_tail = (cmd_queue_tail + 1) % CMD_QUEUE_SIZE;
     return true;
 }
-
-#define NEXT_MESSAGE_ID() (msg_id = (msg_id + 1) % 8)
-#define PDO_POS(x) ((x) + 1)
-#define GET_PDO_POS(x) ((x) - 1)
-
-// ============================================================================
-// 按键修改模式 — 状态机
-// ============================================================================
-
-static key_mode_type_t key_mode = KEY_MODE_SELECT_PDO;
-static modify_field_type_t modify_field = MODIFY_NONE;
-
-// ============================================================================
-// 步进值定义
-// ============================================================================
-
-#define FPDO_CURRENT_MIN_STEP_MA    10    /* FPDO/VPDO 电流最小步进 10mA */
-#define FPDO_CURRENT_BIG_STEP_MA    (FPDO_CURRENT_MIN_STEP_MA * 10)  /* 100mA */
-
-#define BPDO_POWER_MIN_STEP_CW      25    /* BPDO 功率最小步进 250mW (25cW) */
-#define BPDO_POWER_BIG_STEP_CW      (BPDO_POWER_MIN_STEP_CW * 10)   /* 2.5W (250cW) */
-
-#define PPS_VOLTAGE_MIN_STEP_MV     20    /* PPS 电压最小步进 20mV */
-#define PPS_VOLTAGE_BIG_STEP_MV     (PPS_VOLTAGE_MIN_STEP_MV * 10)   /* 200mV */
-#define PPS_CURRENT_MIN_STEP_MA     50    /* PPS 电流最小步进 50mA */
-#define PPS_CURRENT_BIG_STEP_MA     (PPS_CURRENT_MIN_STEP_MA * 10)   /* 500mA */
-
-#define AVS_VOLTAGE_MIN_STEP_MV     100   /* AVS 电压最小步进 100mV */
-#define AVS_VOLTAGE_BIG_STEP_MV     (AVS_VOLTAGE_MIN_STEP_MV * 10)   /* 1000mV */
-#define AVS_CURRENT_MIN_STEP_MA     50    /* AVS 电流最小步进 50mA */
-#define AVS_CURRENT_BIG_STEP_MA     (AVS_CURRENT_MIN_STEP_MA * 10)   /* 500mA */
 
 static void build_header(uint16_t *header, bool use_next_msg_id)
 {
@@ -338,6 +307,7 @@ static void auto_reply(void)
                 }
                 else
                 {
+                    last_timestamp_ms = millis();
                     header = 0x2000 | MSG_TYPE_EPR_Request;
                     build_header(&header, true);
 
@@ -369,6 +339,7 @@ static void auto_reply(void)
         {
             case MSG_TYPE_Source_Capabilities:
             {
+                last_timestamp_ms = millis();
                 header = 0x1000 | MSG_TYPE_Request;
                 build_header(&header, true);
 
@@ -480,6 +451,7 @@ static void send_current_rdo(void)
 {
     uint8_t request[USB_PD_DATA_MAX_LEN] = {0};
     uint32_t data_obj = build_rdo_msg();
+    last_timestamp_ms = millis();
     if (epr_status == EPR_ON)
     {
         uint16_t header = 0x2000 | MSG_TYPE_EPR_Request;
@@ -1120,6 +1092,10 @@ void usb_pd_event_process_next(void)
                 {
                     hid_forward_pd();
                 }
+                else
+                {
+                    auto_reply();
+                }
             }
 
             event_status = PD_WAITING;
@@ -1150,7 +1126,7 @@ void usb_pd_event_process_next(void)
                 build_header(&header, true);
 
                 uint16_t ext_header = 0x8002;
-                uint16_t data_obj = 0x0300;
+                uint16_t data_obj = 0x0003;
 
                 memcpy(&request[0], &header, 2);
                 memcpy(&request[2], &ext_header, 2);
