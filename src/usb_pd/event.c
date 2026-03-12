@@ -385,7 +385,7 @@ static void auto_reply(void)
                     current_rdo.current_mA = current_pdo[0].PDO.FPDO.current_mA;
                     current_rdo.copy_of_pdo = current_pdo[0].raw;
 
-                    send_current_rdo(false);
+                    send_current_rdo(true);
                     break;
                 }
             }
@@ -415,8 +415,14 @@ static void auto_reply(void)
                     current_rdo.voltage_mV = current_pdo[0].PDO.FPDO.voltage_mV;
                     current_rdo.current_mA = current_pdo[0].PDO.FPDO.current_mA;
                     current_rdo.copy_of_pdo = current_pdo[0].raw;
-
-                    send_current_rdo(false);
+                    if (epr_status == EPR_NOT_READY)
+                    {
+                        send_current_rdo(false);
+                    }
+                    else
+                    {
+                        send_current_rdo(true);
+                    }
                     break;
                 }
             }

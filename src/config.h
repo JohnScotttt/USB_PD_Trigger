@@ -101,5 +101,5 @@
 #endif
 
 #ifndef CONFIG_FW_VERSION_PATCH
-    #define CONFIG_FW_VERSION_PATCH 2
+    #define CONFIG_FW_VERSION_PATCH 3
 #endif
