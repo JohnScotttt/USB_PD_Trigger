@@ -98,6 +98,11 @@ static void cmd_forward_sys(uint8_t sys_cmd_code)
             }
             break;
         }
+        case SYS_CMD_GET_STATUS:
+        {
+            // TODO: 通过 HID 报告发送当前状态
+            break;
+        }
         case SYS_CMD_VBUS_ON:
         {
             vbus_out_enable(true);
@@ -147,6 +152,31 @@ static void cmd_forward_sys(uint8_t sys_cmd_code)
         case SYS_CMD_SET_HID_REPORT_MINI:
         {
             set_usb_hid_report_type(HID_REPORT_TYPE_MINI);
+            break;
+        }
+        case SYS_CMD_SET_VBUS_ALWAYS_OFF:
+        {
+            set_vbus_en_status(VBUS_ALWAYS_OFF);
+            break;
+        }
+        case SYS_CMD_SET_VBUS_ALWAYS_ON:
+        {
+            set_vbus_en_status(VBUS_ALWAYS_ON);
+            break;
+        }
+        case SYS_CMD_SET_VBUS_HOLD:
+        {
+            set_vbus_en_status(VBUS_HOLD);
+            break;
+        }
+        case SYS_CMD_TRIGGER_HOLD_ON:
+        {
+            set_trigger_hold_status(TRIGGER_HOLD_ON);
+            break;
+        }
+        case SYS_CMD_TRIGGER_HOLD_OFF:
+        {
+            set_trigger_hold_status(TRIGGER_HOLD_OFF);
             break;
         }
         default:

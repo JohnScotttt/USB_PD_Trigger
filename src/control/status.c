@@ -6,19 +6,43 @@
 static usb_pd_msg_priority_type_t usb_pd_msg_priority = REPLY_PRIORITY;
 static usb_pd_sink_mode_type_t usb_pd_sink_mode = EPR_MODE;
 static usb_hid_report_type_t usb_hid_report_type = HID_REPORT_TYPE_STD;
+static vbus_en_status_type_t vbus_en_status = VBUS_ALWAYS_OFF;
+static trigger_hold_status_type_t trigger_hold_status = TRIGGER_HOLD_OFF;
 static uint32_t fram_capacity = 0;
+
+static void vbus_on(void)
+{
+    GPIO_SetBits(VBUS_EN_GPIO_PORT, VBUS_EN_GPIO_PIN);
+    if (vbus_en_status == VBUS_HOLD_OFF && fram_capacity > 0)
+    {
+        vbus_en_status = VBUS_HOLD_ON;
+        uint8_t buf = (uint8_t)vbus_en_status;
+        fram_write(VBUS_EN_STATUS_OFFSET, &buf, 1);
+    }
+    log_save_sys(VBUS_ON);
+}
+
+static void vbus_off(void)
+{
+    GPIO_ResetBits(VBUS_EN_GPIO_PORT, VBUS_EN_GPIO_PIN);
+    if (vbus_en_status == VBUS_HOLD_ON && fram_capacity > 0)
+    {
+        vbus_en_status = VBUS_HOLD_OFF;
+        uint8_t buf = (uint8_t)vbus_en_status;
+        fram_write(VBUS_EN_STATUS_OFFSET, &buf, 1);
+    }
+    log_save_sys(VBUS_OFF);
+}
 
 static void vbus_en_toggle(void)
 {
     if (GPIO_ReadOutputDataBit(VBUS_EN_GPIO_PORT, VBUS_EN_GPIO_PIN))
     {
-        log_save_sys(VBUS_OFF);
-        GPIO_ResetBits(VBUS_EN_GPIO_PORT, VBUS_EN_GPIO_PIN);
+        vbus_off();
     }
     else
     {
-        log_save_sys(VBUS_ON);
-        GPIO_SetBits(VBUS_EN_GPIO_PORT, VBUS_EN_GPIO_PIN);
+        vbus_on();
     }
 }
 
@@ -41,6 +65,19 @@ void status_init(void)
         usb_pd_sink_mode = buf;
         fram_read(USB_PD_HID_REPORT_TYPE_OFFSET, &buf, 1);
         usb_hid_report_type = buf;
+        fram_read(VBUS_EN_STATUS_OFFSET, &buf, 1);
+        vbus_en_status = buf;
+        fram_read(TRIGGER_HOLD_STATUS_OFFSET, &buf, 1);
+        trigger_hold_status = buf;
+    }
+
+    if (vbus_en_status == VBUS_HOLD_ON || vbus_en_status == VBUS_ALWAYS_ON)
+    {
+        vbus_on();
+    }
+    else if (vbus_en_status == VBUS_HOLD_OFF || vbus_en_status == VBUS_ALWAYS_OFF)
+    {
+        vbus_off();
     }
 }
 
@@ -93,14 +130,34 @@ void vbus_out_enable(bool enable)
 {
     if (enable)
     {
-        GPIO_SetBits(VBUS_EN_GPIO_PORT, VBUS_EN_GPIO_PIN);
-        log_save_sys(VBUS_ON);
+        vbus_on();
     }
     else
     {
-        GPIO_ResetBits(VBUS_EN_GPIO_PORT, VBUS_EN_GPIO_PIN);
-        log_save_sys(VBUS_OFF);
+        vbus_off();
     }
+}
+
+void set_vbus_en_status(vbus_en_status_type_t status)
+{
+    vbus_en_status = status;
+    if (status == VBUS_HOLD && fram_capacity > 0)
+    {
+        uint8_t buf = GPIO_ReadOutputDataBit(VBUS_EN_GPIO_PORT, VBUS_EN_GPIO_PIN) 
+                    ? (uint8_t)VBUS_HOLD_ON : (uint8_t)VBUS_HOLD_OFF;
+        vbus_en_status = buf;
+        fram_write(VBUS_EN_STATUS_OFFSET, &buf, 1);
+    }
+    else if (fram_capacity > 0)
+    {
+        uint8_t buf = (uint8_t)status;
+        fram_write(VBUS_EN_STATUS_OFFSET, &buf, 1);
+    }
+}
+
+vbus_en_status_type_t get_vbus_en_status(void)
+{
+    return vbus_en_status;
 }
 
 void set_fram_capacity(uint32_t capacity)
@@ -111,4 +168,19 @@ void set_fram_capacity(uint32_t capacity)
 uint32_t get_fram_capacity(void)
 {
     return fram_capacity;
+}
+
+void set_trigger_hold_status(trigger_hold_status_type_t status)
+{
+    trigger_hold_status = status;
+    if (fram_capacity > 0)
+    {
+        uint8_t buf = (uint8_t)status;
+        fram_write(TRIGGER_HOLD_STATUS_OFFSET, &buf, 1);
+    }
+}
+
+trigger_hold_status_type_t get_trigger_hold_status(void)
+{
+    return trigger_hold_status;
 }

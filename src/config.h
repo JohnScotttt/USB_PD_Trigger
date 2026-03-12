@@ -57,23 +57,30 @@
 // ------------------------------------------------------------------------------
 //      Data = [Category (1B)] [Command (1B)] [Value (optional) (int32, 4B)]
 //
-// ======================      ==============================      ==========================
-//     Cmd Categories               PD Cmd Codes (0x00)               SYS Cmd Codes (0x01)
-// ----------------------      ------------------------------      --------------------------
-// |  Hex | Description |      |  Hex |         Description |      |  Hex |     Description |
-// | 0x00 |      USB PD |      | 0x00 |          SELECT_PDO |      | 0x00 |      MCU Reboot |
-// | 0x01 |      System |      | 0x01 |            NEXT_PDO |      | 0x01 |   USB PD Reboot |
-// ======================      | 0x02 |            PREV_PDO |      | 0x11 |         VBUS On |
-//                             | 0x03 |      SET_VOLTAGE_MV |      | 0x12 |        VBUS Off |
-//                             | 0x04 |      SET_CURRENT_MA |      | 0x21 |    HID Priority |
-//                             | 0x05 |        SET_POWER_CW |      | 0x22 |  Reply Priority |
-//                             | 0x06 | INCREASE_VOLTAGE_MV |      | 0x31 |        SPR Mode |
-//                             | 0x07 | DECREASE_VOLTAGE_MV |      | 0x32 |        EPR Mode |
-//                             | 0x08 | INCREASE_CURRENT_MA |      | 0x33 |       Prop Mode |
-//                             | 0x09 | DECREASE_CURRENT_MA |      | 0x41 |  HID Report Std |
-//                             | 0x0A |   INCREASE_POWER_CW |      | 0x42 | HID Report Mini |
-//                             | 0x0B |   DECREASE_POWER_CW |      ==========================
-//                             ==============================
+// ======================      ==============================      ===========================
+//     Cmd Categories                PD Cmd Codes (0x00)               SYS Cmd Codes (0x01)
+// ----------------------      ------------------------------      ---------------------------
+// |  Hex | Description |      |  Hex |         Description |      |  Hex |      Description |
+// | 0x00 |      USB PD |      | 0x00 |          SELECT_PDO |      | 0x00 |       MCU Reboot |
+// | 0x01 |      System |      | 0x01 |            NEXT_PDO |      | 0x01 |    USB PD Reboot |
+// ======================      | 0x02 |            PREV_PDO |      | 0x02 |       Get Status |
+//                             | 0x03 |      SET_VOLTAGE_MV |      | 0x11 |          VBUS On |
+//                             | 0x04 |      SET_CURRENT_MA |      | 0x12 |         VBUS Off |
+//                             | 0x05 |        SET_POWER_CW |      | 0x21 |     HID Priority |
+//                             | 0x06 | INCREASE_VOLTAGE_MV |      | 0x22 |   Reply Priority |
+//                             | 0x07 | DECREASE_VOLTAGE_MV |      | 0x31 |         SPR Mode |
+//                             | 0x08 | INCREASE_CURRENT_MA |      | 0x32 |         EPR Mode |
+//                             | 0x09 | DECREASE_CURRENT_MA |      | 0x33 |        Prop Mode |
+//                             | 0x0A |   INCREASE_POWER_CW |      | 0x41 |   HID Report Std |
+//                             | 0x0B |   DECREASE_POWER_CW |      | 0x42 |  HID Report Mini |
+//                             ==============================      | 0x51 |   VBUS Always On |
+//                                                                 | 0x52 |  VBUS Always Off |
+//                                                                 | 0x53 |        VBUS Hold |
+//                                                                 | 0x61 |  Trigger Hold On |
+//                                                                 | 0x62 | Trigger Hold Off |
+//                                                                 ===========================
+
+
 
 #pragma once
 
@@ -94,5 +101,5 @@
 #endif
 
 #ifndef CONFIG_FW_VERSION_PATCH
-    #define CONFIG_FW_VERSION_PATCH 1
+    #define CONFIG_FW_VERSION_PATCH 2
 #endif
