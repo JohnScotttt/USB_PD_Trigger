@@ -28,6 +28,7 @@ typedef enum sys_cmd_code_type_t
 {
     SYS_CMD_MCU_REBOOT          = 0x00,
     SYS_CMD_USB_PD_REBOOT       = 0x01,
+    SYS_CMD_GET_STATUS          = 0x02,
     SYS_CMD_VBUS_ON             = 0x11,
     SYS_CMD_VBUS_OFF            = 0x12,
     SYS_CMD_SET_HID_PRIORITY    = 0x21,
@@ -37,6 +38,11 @@ typedef enum sys_cmd_code_type_t
     SYS_CMD_SET_SINK_MODE_PROP  = 0x33,
     SYS_CMD_SET_HID_REPORT_STD  = 0x41,
     SYS_CMD_SET_HID_REPORT_MINI = 0x42,
+    SYS_CMD_SET_VBUS_ALWAYS_ON  = 0x51,
+    SYS_CMD_SET_VBUS_ALWAYS_OFF = 0x52,
+    SYS_CMD_SET_VBUS_HOLD       = 0x53,
+    SYS_CMD_TRIGGER_HOLD_ON     = 0x61,
+    SYS_CMD_TRIGGER_HOLD_OFF    = 0x62,
 } sys_cmd_code_type_t;
 
 void cmd_process_next(void);

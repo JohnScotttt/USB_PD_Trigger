@@ -185,7 +185,7 @@ typedef struct PDO_t
 typedef struct RDO_t
 {
     uint8_t pos;
-    PDO_type_t type;
+    uint8_t type;
     uint16_t voltage_mV;
     uint16_t current_mA;
     uint16_t pdp_cW;

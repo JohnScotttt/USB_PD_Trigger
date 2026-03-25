@@ -12,11 +12,16 @@
 #define FRAM_CS_LOW()   GPIO_ResetBits(SPI_GPIO_PORT, CS_GPIO_PIN)
 #define FRAM_CS_HIGH()  GPIO_SetBits(SPI_GPIO_PORT, CS_GPIO_PIN)
 
-#define HARDWARE_OFFSET 12
-#define FIRMWARE_OFFSET 15
-#define USB_PD_MSG_PRIORITY_OFFSET 32
-#define USB_PD_SINK_MODE_OFFSET 33
-#define USB_PD_HID_REPORT_TYPE_OFFSET 34
+#define HARDWARE_OFFSET 12                // 1
+#define FIRMWARE_OFFSET 15                // 1
+#define USB_PD_MSG_PRIORITY_OFFSET 32     // 1
+#define USB_PD_SINK_MODE_OFFSET 33        // 1
+#define USB_PD_HID_REPORT_TYPE_OFFSET 34  // 1
+#define VBUS_EN_STATUS_OFFSET 35          // 1
+#define TRIGGER_HOLD_STATUS_OFFSET 36     // 1
+#define USB_PD_PDO_NUM_OFFSET 96          // 1
+#define USB_PD_PDOS_OFFSET 97             // 64
+#define USB_PD_RDO_OFFSET 161             // 12
 
 uint32_t fram_init(void);
 void fram_write(uint16_t addr, uint8_t *buf, uint16_t len);
