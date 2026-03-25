@@ -5,6 +5,8 @@
 #include "interface/uart.h"
 #include "control/status.h"
 #include "control/keypad.h"
+#include "memory/fram.h"
+#include "log/logger.h"
 
 static PDO_t current_pdo[MAX_PDO_COUNT] = {0};
 static uint8_t num_pdos = 0;
@@ -16,10 +18,11 @@ static uint8_t last_ext_data[70] = {0};                 // Only data objects wit
 static usb_pd_event_status_type_t event_status = PD_WAITING;
 static usb_pd_epr_status_type_t epr_status = EPR_UNSUPPORTED;
 static usb_pd_keep_alive_type_t keep_alive_status = KEEP_ALIVE_NONE;
+static key_mode_type_t key_mode = KEY_MODE_SELECT_PDO;
+static modify_field_type_t modify_field = MODIFY_NONE;
 static uint32_t last_timestamp_ms = 0;
 static uint8_t msg_id = 7;
 
-#define CMD_QUEUE_SIZE 4
 static usb_pd_cmd_t cmd_queue[CMD_QUEUE_SIZE];
 static uint8_t cmd_queue_head = 0;
 static uint8_t cmd_queue_tail = 0;
@@ -40,37 +43,6 @@ static bool cmd_queue_pop(usb_pd_cmd_t *cmd)
     cmd_queue_tail = (cmd_queue_tail + 1) % CMD_QUEUE_SIZE;
     return true;
 }
-
-#define NEXT_MESSAGE_ID() (msg_id = (msg_id + 1) % 8)
-#define PDO_POS(x) ((x) + 1)
-#define GET_PDO_POS(x) ((x) - 1)
-
-// ============================================================================
-// 按键修改模式 — 状态机
-// ============================================================================
-
-static key_mode_type_t key_mode = KEY_MODE_SELECT_PDO;
-static modify_field_type_t modify_field = MODIFY_NONE;
-
-// ============================================================================
-// 步进值定义
-// ============================================================================
-
-#define FPDO_CURRENT_MIN_STEP_MA    10    /* FPDO/VPDO 电流最小步进 10mA */
-#define FPDO_CURRENT_BIG_STEP_MA    (FPDO_CURRENT_MIN_STEP_MA * 10)  /* 100mA */
-
-#define BPDO_POWER_MIN_STEP_CW      25    /* BPDO 功率最小步进 250mW (25cW) */
-#define BPDO_POWER_BIG_STEP_CW      (BPDO_POWER_MIN_STEP_CW * 10)   /* 2.5W (250cW) */
-
-#define PPS_VOLTAGE_MIN_STEP_MV     20    /* PPS 电压最小步进 20mV */
-#define PPS_VOLTAGE_BIG_STEP_MV     (PPS_VOLTAGE_MIN_STEP_MV * 10)   /* 200mV */
-#define PPS_CURRENT_MIN_STEP_MA     50    /* PPS 电流最小步进 50mA */
-#define PPS_CURRENT_BIG_STEP_MA     (PPS_CURRENT_MIN_STEP_MA * 10)   /* 500mA */
-
-#define AVS_VOLTAGE_MIN_STEP_MV     100   /* AVS 电压最小步进 100mV */
-#define AVS_VOLTAGE_BIG_STEP_MV     (AVS_VOLTAGE_MIN_STEP_MV * 10)   /* 1000mV */
-#define AVS_CURRENT_MIN_STEP_MA     50    /* AVS 电流最小步进 50mA */
-#define AVS_CURRENT_BIG_STEP_MA     (AVS_CURRENT_MIN_STEP_MA * 10)   /* 500mA */
 
 static void build_header(uint16_t *header, bool use_next_msg_id)
 {
@@ -253,6 +225,64 @@ static void parse_pdos(void)
     modify_field = MODIFY_NONE;
 }
 
+static bool trigger_hold_check(void)
+{
+    if (get_fram_capacity() > 0 && epr_status != EPR_NOT_READY)
+    {
+        uint8_t last_pdo_num = 0;
+        uint8_t last_pdos[64] = {0};
+        fram_read(USB_PD_PDO_NUM_OFFSET, &last_pdo_num, 1);
+        fram_read(USB_PD_PDOS_OFFSET, last_pdos, 64);
+        uint8_t *pdos_data = current_msg_header.extended ? last_ext_data : current_data;
+        uint8_t result = memcmp(&last_pdos[3], &pdos_data[3], num_pdos * 4);
+        if (result == 0 && last_pdo_num == num_pdos && get_trigger_hold_status() == TRIGGER_HOLD_ON)
+        {
+            return true;
+        }
+        else
+        {
+            fram_write(USB_PD_PDO_NUM_OFFSET, &num_pdos, 1);
+            fram_write(USB_PD_PDOS_OFFSET, pdos_data, 64);
+            return false;
+        }
+    }
+    return false;
+}
+
+static void send_current_rdo(bool fram_write_en)
+{
+    uint8_t request[USB_PD_DATA_MAX_LEN] = {0};
+    uint32_t data_obj = build_rdo_msg();
+    last_timestamp_ms = millis();
+    if (epr_status == EPR_ON)
+    {
+        uint16_t header = 0x2000 | MSG_TYPE_EPR_Request;
+        build_header(&header, true);
+
+        memcpy(&request[0], &header, 2);
+        memcpy(&request[2], &data_obj, 4);
+        memcpy(&request[6], &current_rdo.copy_of_pdo, 4);
+        if (fram_write_en)
+        {
+            fram_write(USB_PD_RDO_OFFSET, (uint8_t*)&current_rdo, sizeof(RDO_t));
+        }
+        usb_pd_phy_send_data(request, 10, UPD_SOP0);
+    }
+    else
+    {
+        uint16_t header = 0x1000 | MSG_TYPE_Request;
+        build_header(&header, true);
+
+        memcpy(&request[0], &header, 2);
+        memcpy(&request[2], &data_obj, 4);
+        if (fram_write_en)
+        {
+            fram_write(USB_PD_RDO_OFFSET, (uint8_t*)&current_rdo, sizeof(RDO_t));
+        }
+        usb_pd_phy_send_data(request, 6, UPD_SOP0);
+    }
+}
+
 static void process_msg(void)
 {
     if (current_msg_header.extended && !current_msg_header.req_chunk) // save chunked data
@@ -337,19 +367,17 @@ static void auto_reply(void)
                     usb_pd_phy_send_data(reply, 6, UPD_SOP0);
                     break;
                 }
+                else if (trigger_hold_check())
+                {
+                    RDO_t rdo = {0};
+                    fram_read(USB_PD_RDO_OFFSET, (uint8_t*)&rdo, sizeof(RDO_t));
+                    current_rdo = rdo;
+                    send_current_rdo(true);
+                    break;
+                }
                 else
                 {
-                    header = 0x2000 | MSG_TYPE_EPR_Request;
-                    build_header(&header, true);
-
-                    uint32_t data_obj = 0x10000000;
-                    data_obj |= current_pdo[0].epr << 22;
-                    data_obj |= current_pdo[0].PDO.FPDO.current_mA / 10 << 10;
-                    data_obj |= current_pdo[0].PDO.FPDO.current_mA / 10;
-
-                    memcpy(&reply[0], &header, 2);
-                    memcpy(&reply[2], &data_obj, 4);
-                    memcpy(&reply[6], &current_pdo[0].raw, 4);
+                    last_timestamp_ms = millis();
 
                     memset(&current_rdo, 0, sizeof(current_rdo));
                     current_rdo.pos = 0;
@@ -358,7 +386,7 @@ static void auto_reply(void)
                     current_rdo.current_mA = current_pdo[0].PDO.FPDO.current_mA;
                     current_rdo.copy_of_pdo = current_pdo[0].raw;
 
-                    usb_pd_phy_send_data(reply, 10, UPD_SOP0);
+                    send_current_rdo(true);
                     break;
                 }
             }
@@ -370,26 +398,34 @@ static void auto_reply(void)
         {
             case MSG_TYPE_Source_Capabilities:
             {
-                header = 0x1000 | MSG_TYPE_Request;
-                build_header(&header, true);
+                if (trigger_hold_check())
+                {
+                    RDO_t rdo = {0};
+                    fram_read(USB_PD_RDO_OFFSET, (uint8_t*)&rdo, sizeof(RDO_t));
+                    current_rdo = rdo;
+                    send_current_rdo(true);
+                    break;
+                }
+                else
+                {
+                    last_timestamp_ms = millis();
 
-                uint32_t data_obj = 0x10000000;
-                data_obj |= current_pdo[0].epr << 22;
-                data_obj |= current_pdo[0].PDO.FPDO.current_mA / 10 << 10;
-                data_obj |= current_pdo[0].PDO.FPDO.current_mA / 10;
-
-                memcpy(&reply[0], &header, 2);
-                memcpy(&reply[2], &data_obj, 4);
-
-                memset(&current_rdo, 0, sizeof(current_rdo));
-                current_rdo.pos = 0;
-                current_rdo.type = current_pdo[0].type;
-                current_rdo.voltage_mV = current_pdo[0].PDO.FPDO.voltage_mV;
-                current_rdo.current_mA = current_pdo[0].PDO.FPDO.current_mA;
-                current_rdo.copy_of_pdo = current_pdo[0].raw;
-
-                usb_pd_phy_send_data(reply, 6, UPD_SOP0);
-                break;
+                    memset(&current_rdo, 0, sizeof(current_rdo));
+                    current_rdo.pos = 0;
+                    current_rdo.type = current_pdo[0].type;
+                    current_rdo.voltage_mV = current_pdo[0].PDO.FPDO.voltage_mV;
+                    current_rdo.current_mA = current_pdo[0].PDO.FPDO.current_mA;
+                    current_rdo.copy_of_pdo = current_pdo[0].raw;
+                    if (epr_status == EPR_NOT_READY)
+                    {
+                        send_current_rdo(false);
+                    }
+                    else
+                    {
+                        send_current_rdo(true);
+                    }
+                    break;
+                }
             }
         }
     }
@@ -477,31 +513,6 @@ static void hid_forward_pd(void)
     }
 }
 
-static void send_current_rdo(void)
-{
-    uint8_t request[USB_PD_DATA_MAX_LEN] = {0};
-    uint32_t data_obj = build_rdo_msg();
-    if (epr_status == EPR_ON)
-    {
-        uint16_t header = 0x2000 | MSG_TYPE_EPR_Request;
-        build_header(&header, true);
-
-        memcpy(&request[0], &header, 2);
-        memcpy(&request[2], &data_obj, 4);
-        memcpy(&request[6], &current_rdo.copy_of_pdo, 4);
-        usb_pd_phy_send_data(request, 10, UPD_SOP0);
-    }
-    else
-    {
-        uint16_t header = 0x1000 | MSG_TYPE_Request;
-        build_header(&header, true);
-
-        memcpy(&request[0], &header, 2);
-        memcpy(&request[2], &data_obj, 4);
-        usb_pd_phy_send_data(request, 6, UPD_SOP0);
-    }
-}
-
 // 查找下一个有效PDO位置（跳过 raw == 0 的空槽）
 // direction: +1 向后, -1 向前
 static uint8_t find_valid_pdo_pos(int8_t direction)
@@ -567,7 +578,7 @@ static void select_and_send_rdo(uint8_t pos)
             break;
     }
 
-    send_current_rdo();
+    send_current_rdo(true);
 }
 
 // ============================================================================
@@ -846,7 +857,7 @@ static void cmd_execute_immediate(const usb_pd_cmd_t *cmd)
             current_rdo.voltage_mV = (uint16_t)v;
             clamp_spr_avs_current(MODIFY_VOLTAGE);
             clamp_epr_avs_pdp(MODIFY_VOLTAGE);
-            send_current_rdo();
+            send_current_rdo(true);
             break;
         }
         case USB_PD_CMD_SET_CURRENT_MA:
@@ -858,7 +869,7 @@ static void cmd_execute_immediate(const usb_pd_cmd_t *cmd)
             if (v > (int32_t)max_val) v = max_val;
             current_rdo.current_mA = (uint16_t)v;
             clamp_epr_avs_pdp(MODIFY_CURRENT);
-            send_current_rdo();
+            send_current_rdo(true);
             break;
         }
         case USB_PD_CMD_SET_POWER_CW:
@@ -869,21 +880,21 @@ static void cmd_execute_immediate(const usb_pd_cmd_t *cmd)
             if (v < (int32_t)min_val) v = min_val;
             if (v > (int32_t)max_val) v = max_val;
             current_rdo.pdp_cW = (uint16_t)v;
-            send_current_rdo();
+            send_current_rdo(true);
             break;
         }
 
         case USB_PD_CMD_ADJUST_VOLTAGE_MV:
             apply_step(MODIFY_VOLTAGE, (int16_t)cmd->value);
-            send_current_rdo();
+            send_current_rdo(true);
             break;
         case USB_PD_CMD_ADJUST_CURRENT_MA:
             apply_step(MODIFY_CURRENT, (int16_t)cmd->value);
-            send_current_rdo();
+            send_current_rdo(true);
             break;
         case USB_PD_CMD_ADJUST_POWER_CW:
             apply_step(MODIFY_POWER, (int16_t)cmd->value);
-            send_current_rdo();
+            send_current_rdo(true);
             break;
     }
 }
@@ -1121,6 +1132,10 @@ void usb_pd_event_process_next(void)
                 {
                     hid_forward_pd();
                 }
+                else
+                {
+                    auto_reply();
+                }
             }
 
             event_status = PD_WAITING;
@@ -1151,7 +1166,7 @@ void usb_pd_event_process_next(void)
                 build_header(&header, true);
 
                 uint16_t ext_header = 0x8002;
-                uint16_t data_obj = 0x0300;
+                uint16_t data_obj = 0x0003;
 
                 memcpy(&request[0], &header, 2);
                 memcpy(&request[2], &ext_header, 2);
@@ -1162,20 +1177,7 @@ void usb_pd_event_process_next(void)
             else if (keep_alive_status == KEEP_ALIVE_PPS && millis() - last_timestamp_ms > 8000)
             {
                 last_timestamp_ms = millis();
-                uint8_t request[USB_PD_DATA_MAX_LEN] = {0};
-                uint16_t header = 0x1000 | MSG_TYPE_Request;
-                build_header(&header, true);
-
-                uint32_t data_obj = 0;
-                data_obj |= PDO_POS(current_rdo.pos) << 28;
-                data_obj |= current_pdo[0].epr << 22;
-                data_obj |= current_rdo.voltage_mV / 20 << 9;
-                data_obj |= current_rdo.current_mA / 50;
-
-                memcpy(&request[0], &header, 2);
-                memcpy(&request[2], &data_obj, 4);
-
-                usb_pd_phy_send_data(request, 6, UPD_SOP0);
+                send_current_rdo(true);
             }
 
             if (hid_rx_buf_has_pd())

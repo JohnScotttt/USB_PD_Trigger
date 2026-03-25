@@ -4,6 +4,26 @@
 
 #define MAX_PDO_COUNT 15
 #define PDO_MASK 0b1100
+#define CMD_QUEUE_SIZE 4
+#define NEXT_MESSAGE_ID() (msg_id = (msg_id + 1) % 8)
+#define PDO_POS(x) ((x) + 1)
+#define GET_PDO_POS(x) ((x) - 1)
+
+#define FPDO_CURRENT_MIN_STEP_MA    10    /* FPDO/VPDO 电流最小步进 10mA */
+#define FPDO_CURRENT_BIG_STEP_MA    (FPDO_CURRENT_MIN_STEP_MA * 10)  /* 100mA */
+
+#define BPDO_POWER_MIN_STEP_CW      25    /* BPDO 功率最小步进 250mW (25cW) */
+#define BPDO_POWER_BIG_STEP_CW      (BPDO_POWER_MIN_STEP_CW * 10)   /* 2.5W (250cW) */
+
+#define PPS_VOLTAGE_MIN_STEP_MV     20    /* PPS 电压最小步进 20mV */
+#define PPS_VOLTAGE_BIG_STEP_MV     (PPS_VOLTAGE_MIN_STEP_MV * 10)   /* 200mV */
+#define PPS_CURRENT_MIN_STEP_MA     50    /* PPS 电流最小步进 50mA */
+#define PPS_CURRENT_BIG_STEP_MA     (PPS_CURRENT_MIN_STEP_MA * 10)   /* 500mA */
+
+#define AVS_VOLTAGE_MIN_STEP_MV     100   /* AVS 电压最小步进 100mV */
+#define AVS_VOLTAGE_BIG_STEP_MV     (AVS_VOLTAGE_MIN_STEP_MV * 10)   /* 1000mV */
+#define AVS_CURRENT_MIN_STEP_MA     50    /* AVS 电流最小步进 50mA */
+#define AVS_CURRENT_BIG_STEP_MA     (AVS_CURRENT_MIN_STEP_MA * 10)   /* 500mA */
 
 typedef enum usb_pd_control_message_type_t
 {
@@ -165,7 +185,7 @@ typedef struct PDO_t
 typedef struct RDO_t
 {
     uint8_t pos;
-    PDO_type_t type;
+    uint8_t type;
     uint16_t voltage_mV;
     uint16_t current_mA;
     uint16_t pdp_cW;
