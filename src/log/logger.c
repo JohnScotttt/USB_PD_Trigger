@@ -1,6 +1,6 @@
 #include "logger.h"
 #include "vbus/sensor.h"
-#include "interface/hid.h"
+#include "interface/host.h"
 #include "delay.h"
 #include "control/status.h"
 
@@ -251,7 +251,7 @@ static bool send(const log_entry_t *log)
         return false;
     }
     
-    return hid_send_report((uint8_t *)&report, sizeof(usb_hid_std_report_t));
+    return host_send_report((uint8_t *)&report, sizeof(usb_hid_std_report_t));
 }
 
 void log_process_next(void)

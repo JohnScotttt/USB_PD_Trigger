@@ -97,9 +97,9 @@
 #endif
 
 #ifndef CONFIG_FW_VERSION_MINOR
-    #define CONFIG_FW_VERSION_MINOR 2
+    #define CONFIG_FW_VERSION_MINOR 3
 #endif
 
 #ifndef CONFIG_FW_VERSION_PATCH
-    #define CONFIG_FW_VERSION_PATCH 3
+    #define CONFIG_FW_VERSION_PATCH 0
 #endif

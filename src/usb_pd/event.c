@@ -1,8 +1,7 @@
 #include "event.h"
 #include "phy.h"
 #include "delay.h"
-#include "interface/hid.h"
-#include "interface/uart.h"
+#include "interface/host.h"
 #include "control/status.h"
 #include "control/keypad.h"
 #include "memory/fram.h"
@@ -462,24 +461,24 @@ static void auto_reply(void)
     }
 }
 
-static void hid_forward_pd(void)
+static void host_forward_pd(void)
 {
     const uint8_t *data = NULL;
-    if (!hid_rx_buf_peek_pd(&data))
+    if (!host_rx_peek_pd(&data))
     {
         return;
     }
 
-    uint8_t buf[HIDRAW_OUT_EP_SIZE] = {0};
-    memcpy(buf, data, HIDRAW_OUT_EP_SIZE);
-    hid_rx_buf_pop_pd();
+    uint8_t buf[HOST_RX_BUF_SIZE] = {0};
+    memcpy(buf, data, HOST_RX_BUF_SIZE);
+    host_rx_pop_pd();
 
     // Determine payload base offset based on packet format
     // Standard: ...| FullLength [10] | DataType [11] | SOP [12] | PD...
     // Mini:     ...| FullLength [2]  | DataType [3]  | SOP [4]  | PD...
-    uint8_t d = (buf[0] == HID_CMD_HEADER_0_STD)
-              ? (HID_CMD_STD_DATA_TYPE_OFFSET + 1)    // 12
-              : (HID_CMD_MINI_DATA_TYPE_OFFSET + 1);  // 4
+    uint8_t d = (buf[0] == HOST_CMD_HEADER_0_STD)
+              ? (HOST_CMD_STD_DATA_TYPE_OFFSET + 1)    // 12
+              : (HOST_CMD_MINI_DATA_TYPE_OFFSET + 1);  // 4
 
     uint8_t length = buf[d - 2] - 2; // FullLength minus DataType and SOP
     uint8_t sop = (buf[d] == SOP)         ? UPD_SOP0
@@ -1128,9 +1127,9 @@ void usb_pd_event_process_next(void)
             }
             else if (get_usb_pd_msg_priority() == IF_PRIORITY)
             {
-                if (hid_rx_buf_has_pd())
+                if (host_rx_has_pd())
                 {
-                    hid_forward_pd();
+                    host_forward_pd();
                 }
                 else
                 {
@@ -1180,9 +1179,9 @@ void usb_pd_event_process_next(void)
                 send_current_rdo(true);
             }
 
-            if (hid_rx_buf_has_pd())
+            if (host_rx_has_pd())
             {
-                hid_forward_pd();
+                host_forward_pd();
             }
             
             if (key_buf_has_data())

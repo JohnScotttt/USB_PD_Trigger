@@ -1,5 +1,5 @@
 #include "cmd.h"
-#include "interface/hid.h"
+#include "interface/host.h"
 #include "status.h"
 #include "usb_pd/event.h"
 #include "usb_pd/phy.h"
@@ -186,24 +186,24 @@ static void cmd_forward_sys(uint8_t sys_cmd_code)
 
 void cmd_process_next(void)
 {
-    if (!hid_rx_buf_has_sys())
+    if (!host_rx_has_sys())
     {
         return;
     }
 
     const uint8_t *data = NULL;
-    if (!hid_rx_buf_peek_sys(&data))
+    if (!host_rx_peek_sys(&data))
     {
         return;
     }
 
-    uint8_t buf[HIDRAW_OUT_EP_SIZE] = {0};
-    memcpy(buf, data, HIDRAW_OUT_EP_SIZE);
-    hid_rx_buf_pop_sys();
+    uint8_t buf[HOST_RX_BUF_SIZE] = {0};
+    memcpy(buf, data, HOST_RX_BUF_SIZE);
+    host_rx_pop_sys();
 
-    uint8_t d = (buf[0] == HID_CMD_HEADER_0_STD)
-              ? (HID_CMD_STD_DATA_TYPE_OFFSET + 1)
-              : (HID_CMD_MINI_DATA_TYPE_OFFSET + 1);
+    uint8_t d = (buf[0] == HOST_CMD_HEADER_0_STD)
+              ? (HOST_CMD_STD_DATA_TYPE_OFFSET + 1)
+              : (HOST_CMD_MINI_DATA_TYPE_OFFSET + 1);
 
     uint8_t length = buf[d - 2] - 2;
     if (length == 0)

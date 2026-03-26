@@ -1,4 +1,5 @@
 #include "hid.h"
+#include "host.h"
 
 #include <ch32x035.h>
 #include <stdarg.h>
@@ -13,6 +14,20 @@
 // #include "print.h"
 #include "delay.h"
 #include "uid.h"
+
+static inline uint32_t irq_save(void)
+{
+    uint32_t val;
+    __asm__ volatile("csrr %0, 0x800" : "=r"(val));
+    __asm__ volatile("csrc 0x800, %0" : : "r"(0x88));
+    __asm__ volatile("fence.i");
+    return val;
+}
+
+static inline void irq_restore(uint32_t val)
+{
+    __asm__ volatile("csrw 0x800, %0" : : "r"(val));
+}
 
 // config descriptor size
 #define USB_HID_CONFIG_DESC_SIZE (9 + 9 + 9 + 7 + 7)
@@ -168,49 +183,8 @@ USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t read_buffer[HIDRAW_OUT_EP_SIZE];
 USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t send_buffer[HIDRAW_IN_EP_SIZE];
 
 // hid state, data can be sent only when state is idle
-static volatile uint8_t custom_state;
-
-// ---- Dual RX Buffer (PD / System) ----
-static hid_rx_buf_t pd_buf;
-static hid_rx_buf_t sys_buf;
-
-#define HID_RING_INC(x) (((x) + 1) % HID_RX_FIFO_DEPTH)
-
-static inline bool hid_rx_buf_is_full(const hid_rx_buf_t *f)
-{
-    return HID_RING_INC(f->head) == f->tail;
-}
-
-static inline bool hid_rx_buf_has_data(const hid_rx_buf_t *f)
-{
-    return f->head != f->tail;
-}
-
-static inline void hid_rx_buf_push(hid_rx_buf_t *f, const uint8_t *data)
-{
-    if (hid_rx_buf_is_full(f)) return; // drop on overflow
-    memcpy(f->buf[f->head], data, HIDRAW_OUT_EP_SIZE);
-    f->head = HID_RING_INC(f->head);
-}
-
-static inline void hid_rx_buf_clear(hid_rx_buf_t *f)
-{
-    f->head = 0;
-    f->tail = 0;
-}
-
-static inline bool hid_rx_buf_peek(const hid_rx_buf_t *f, const uint8_t **data)
-{
-    if (!hid_rx_buf_has_data(f)) return false;
-    *data = f->buf[f->tail];
-    return true;
-}
-
-static inline void hid_rx_buf_pop(hid_rx_buf_t *f)
-{
-    if (!hid_rx_buf_has_data(f)) return;
-    f->tail = HID_RING_INC(f->tail);
-}
+// Initialise to BUSY so that sends are blocked until USB enumeration completes.
+static volatile uint8_t custom_state = HID_STATE_BUSY;
 
 static void usbd_event_handler(uint8_t busid, uint8_t event)
 {
@@ -253,33 +227,7 @@ static void usbd_hid_custom_in_callback(uint8_t busid, uint8_t ep, uint32_t nbyt
 static void usbd_hid_custom_out_callback(uint8_t busid, uint8_t ep, uint32_t nbytes)
 {
     USB_LOG_RAW("actual out len:%d\r\n", (unsigned int)nbytes);
-    if (nbytes >= HID_CMD_MINI_DATA_TYPE_OFFSET + 1
-        && read_buffer[1] == HID_CMD_HEADER_1)
-    {
-        uint8_t dt_offset = 0;
-        bool valid = false;
-
-        if (read_buffer[0] == HID_CMD_HEADER_0_STD && nbytes >= HID_CMD_STD_DATA_TYPE_OFFSET + 1)
-        {
-            dt_offset = HID_CMD_STD_DATA_TYPE_OFFSET;
-            valid = true;
-        }
-        else if (read_buffer[0] == HID_CMD_HEADER_0_MINI)
-        {
-            dt_offset = HID_CMD_MINI_DATA_TYPE_OFFSET;
-            valid = true;
-        }
-
-        if (valid)
-        {
-            uint8_t data_type = read_buffer[dt_offset];
-            if (data_type == HID_CMD_TYPE_PD)
-                hid_rx_buf_push(&pd_buf, read_buffer);
-            else if (data_type == HID_CMD_TYPE_SYS)
-                hid_rx_buf_push(&sys_buf, read_buffer);
-        }
-    }
-    // else: discard invalid header
+    host_rx_dispatch(read_buffer, nbytes);
     usbd_ep_start_read(busid, ep, read_buffer, HIDRAW_OUT_EP_SIZE);
 }
 
@@ -295,6 +243,8 @@ static struct usbd_endpoint custom_out_ep = {
 
 static struct usbd_interface intf0;
 
+static uint8_t hid_initialized = 0;
+
 void usb_init(void)
 {
     usbd_desc_register(0, &hid_descriptor);
@@ -304,6 +254,8 @@ void usb_init(void)
     usbd_add_endpoint(0, &custom_out_ep);
 
     usbd_initialize(0, 0, usbd_event_handler);
+
+    hid_initialized = 1;
 }
 
 void usb_dc_low_level_init(void)
@@ -333,10 +285,23 @@ void usb_dc_low_level_init(void)
 
 uint8_t hid_send_report(const uint8_t *data, uint16_t len)
 {
+    if (!hid_initialized)
+        return 1;
+
+    uint32_t saved = irq_save();
     if (custom_state != HID_STATE_IDLE)
+    {
+        irq_restore(saved);
         return 0;
+    }
+    custom_state = HID_STATE_BUSY;
+    irq_restore(saved);
+
     if (len > HIDRAW_IN_EP_SIZE)
+    {
+        custom_state = HID_STATE_IDLE;
         return 0;
+    }
 
     memcpy(send_buffer, data, len);
     if (len < HIDRAW_IN_EP_SIZE) {
@@ -344,53 +309,12 @@ uint8_t hid_send_report(const uint8_t *data, uint16_t len)
     }
 
     int ret = usbd_ep_start_write(0, HIDRAW_IN_EP, send_buffer, HIDRAW_IN_EP_SIZE);
-    if (ret == 0)
+    if (ret != 0)
     {
-        custom_state = HID_STATE_BUSY;
-        return 1;
+        custom_state = HID_STATE_IDLE;
+        return 0;
     }
 
-    return 0;
+    return 1;
 }
 
-// ---- Buffer public API ----
-
-bool hid_rx_buf_has_pd(void)
-{
-    return hid_rx_buf_has_data(&pd_buf);
-}
-
-bool hid_rx_buf_has_sys(void)
-{
-    return hid_rx_buf_has_data(&sys_buf);
-}
-
-void hid_rx_buf_pop_pd(void)
-{
-    hid_rx_buf_pop(&pd_buf);
-}
-
-void hid_rx_buf_pop_sys(void)
-{
-    hid_rx_buf_pop(&sys_buf);
-}
-
-void hid_rx_buf_clear_pd(void)
-{
-    hid_rx_buf_clear(&pd_buf);
-}
-
-void hid_rx_buf_clear_sys(void)
-{
-    hid_rx_buf_clear(&sys_buf);
-}
-
-bool hid_rx_buf_peek_pd(const uint8_t **data)
-{
-    return hid_rx_buf_peek(&pd_buf, data);
-}
-
-bool hid_rx_buf_peek_sys(const uint8_t **data)
-{
-    return hid_rx_buf_peek(&sys_buf, data);
-}

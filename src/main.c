@@ -1,5 +1,6 @@
 #include <ch32x035.h>
 #include "interface/hid.h"
+#include "interface/uart.h"
 #include "usb_pd/phy.h"
 #include "usb_pd/ccdet.h"
 #include "usb_pd/sink.h"
@@ -24,7 +25,8 @@ int main(void)
     keypad_init();
 
     usb_init();
-    
+    uart_init();
+
     usb_pd_sink_init();
 
     in_adc_init();

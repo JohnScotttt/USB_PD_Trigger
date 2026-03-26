@@ -3,7 +3,7 @@
 #include "event.h"
 #include "ccdet.h"
 #include "phy.h"
-#include "interface/hid.h"
+#include "interface/host.h"
 
 #include "delay.h"
 #include "config.h"
@@ -42,7 +42,7 @@ static void usb_pd_sink_connection_changed_callback(usb_pd_cc_channel_type_t old
 {
     usb_pd_event_save_connect_change();
     log_save_usb_pd_connect_change(old_channel, new_channel);
-    hid_rx_buf_clear_pd();
+    host_rx_clear_pd();
 }
 
 void usb_pd_sink_process(void)
