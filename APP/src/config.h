@@ -78,6 +78,7 @@
 //                                                                 | 0x53 |        VBUS Hold |
 //                                                                 | 0x61 |  Trigger Hold On |
 //                                                                 | 0x62 | Trigger Hold Off |
+//                                                                 | 0x71 | Enter Bootloader |
 //                                                                 ===========================
 
 
@@ -103,3 +104,10 @@
 #ifndef CONFIG_FW_VERSION_PATCH
     #define CONFIG_FW_VERSION_PATCH 3
 #endif
+
+// IAP memory layout (0x08000000 base for flash programming APIs)
+#define FLASH_APP_BASE          0x08003000
+#define FLASH_APP_SIZE          0xC800      // 50KB
+#define CAL_ADDR                (0x0800F800 - 4)  // 0x0800F7FC
+#define CHECK_NUM               0x5AA55AA5
+#define FLASH_PAGE_SIZE         256

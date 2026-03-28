@@ -43,6 +43,7 @@ typedef enum sys_cmd_code_type_t
     SYS_CMD_SET_VBUS_HOLD       = 0x53,
     SYS_CMD_TRIGGER_HOLD_ON     = 0x61,
     SYS_CMD_TRIGGER_HOLD_OFF    = 0x62,
+    SYS_CMD_ENTER_BOOTLOADER    = 0x71,
 } sys_cmd_code_type_t;
 
 void cmd_process_next(void);

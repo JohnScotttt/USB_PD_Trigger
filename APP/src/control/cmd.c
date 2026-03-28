@@ -5,6 +5,7 @@
 #include "usb_pd/phy.h"
 #include "vbus/sensor.h"
 #include "delay.h"
+#include "config.h"
 
 static void cmd_forward_pd(uint8_t pd_cmd_code, int32_t value)
 {
@@ -177,6 +178,35 @@ static void cmd_forward_sys(uint8_t sys_cmd_code)
         case SYS_CMD_TRIGGER_HOLD_OFF:
         {
             set_trigger_hold_status(TRIGGER_HOLD_OFF);
+            break;
+        }
+        case SYS_CMD_ENTER_BOOTLOADER:
+        {
+            // Write CheckNum to CalAddr to signal bootloader entry on next reset
+            uint32_t page_addr = CAL_ADDR & ~(FLASH_PAGE_SIZE - 1);
+            uint32_t page_buf[FLASH_PAGE_SIZE / 4];
+
+            // Read current page content
+            memcpy(page_buf, (const void *)page_addr, FLASH_PAGE_SIZE);
+
+            // Set CalAddr to CheckNum
+            uint32_t word_offset = (CAL_ADDR - page_addr) / 4;
+            page_buf[word_offset] = CHECK_NUM;
+
+            // Erase and reprogram the page
+            FLASH_Unlock_Fast();
+            FLASH_ErasePage_Fast(page_addr);
+            FLASH_BufReset();
+            for (uint8_t i = 0; i < 64; i++)
+            {
+                FLASH_BufLoad(page_addr + 4 * i, page_buf[i]);
+            }
+            FLASH_ProgramPage_Fast(page_addr);
+            FLASH->CTLR |= ((uint32_t)0x00008000); // FLASH_Lock_Fast
+            FLASH->CTLR |= ((uint32_t)0x00000080); // FLASH_Lock
+
+            delay_ms(10);
+            NVIC_SystemReset();
             break;
         }
         default:
